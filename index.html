@@ -64,6 +64,8 @@ body.repeat #mainSvg{cursor:crosshair}
 
 #banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#3a3330;color:#fff;border-radius:999px;
   padding:6px 6px 6px 18px;display:flex;gap:10px;align-items:center;z-index:7;font-weight:700;font-size:15px;white-space:nowrap;box-shadow:0 4px 14px #0004;max-width:calc(100% - 20px)}
+#banner{pointer-events:none}
+#banner button{pointer-events:auto}
 #banner span{overflow:hidden;text-overflow:ellipsis}
 @media (max-width:520px){ header h1 small{display:none} }
 #banner button{border:0;background:#fff;color:var(--ink);border-radius:999px;min-height:44px;padding:0 16px;font-weight:700}
@@ -83,6 +85,8 @@ body.repeat #mainSvg{cursor:crosshair}
 
 /* ---- tools ---- */
 #tools{grid-area:tools;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+#toolsBody{display:contents}
+#sheetBar{display:none}
 .sect{display:flex;flex-direction:column;gap:6px}
 .sect h3{margin:0;font-size:13px;color:var(--sub)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
@@ -115,6 +119,66 @@ body.repeat #mainSvg{cursor:crosshair}
   #tools{flex-direction:row;flex-wrap:wrap;max-height:36vh;align-items:flex-start}
   .sect{flex:1 1 200px}
   #patWin{top:auto;bottom:70px;right:8px}
+}
+
+/* ---- phone: tools become a bottom sheet ---- */
+@media (max-width:600px){
+  #app{grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"head" "parts" "stage";gap:6px;
+    padding-bottom:calc(70px + env(safe-area-inset-bottom))}
+  header{padding:0 4px}
+  header h1{font-size:17px}
+  header .sub{font-size:12px}
+  #parts{padding:4px 6px;gap:4px;border-radius:14px}
+  .pgroup{gap:2px}
+  .part{min-width:44px;min-height:44px;padding:2px}
+  #bigOnlyBtn{min-height:44px;min-width:0;font-size:11px;padding:2px 6px;border-radius:12px}
+  #bigOnlyBtn .ic{font-size:15px}
+  #stage{border-radius:14px}
+  .round{width:44px;height:44px;font-size:20px}
+  .round.wide{border-radius:22px;font-size:14px;padding:0 12px}
+  #viewCtl{left:8px;bottom:8px}
+
+  #tools{position:fixed;left:0;right:0;bottom:0;z-index:40;display:block;overflow:visible;max-height:none;
+    border-radius:20px 20px 0 0;padding:0 10px calc(8px + env(safe-area-inset-bottom));
+    box-shadow:0 -4px 18px #0002,0 0 0 1px var(--line) inset;
+    transform:translateY(calc(100% - 66px - env(safe-area-inset-bottom)));transition:transform .25s ease}
+  #tools.open{transform:none}
+  #sheetBar{display:block;touch-action:none}
+  #sheetGrip{height:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  #sheetGrip span{width:44px;height:5px;border-radius:3px;background:#cbbfae}
+  #miniBar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;height:48px}
+  .mini{display:flex;align-items:center;justify-content:center;gap:4px;border:2px solid var(--line);border-radius:12px;background:#fff;
+    font-weight:700;font-size:12px;padding:0 4px;min-height:44px;white-space:nowrap}
+  .mini .ic{font-size:18px}
+  .mini.on{background:var(--accent-soft);border-color:var(--accent)}
+  .mini:disabled{opacity:.38}
+  #miniColor{display:inline-block;width:20px;height:20px;border-radius:50%;box-shadow:0 0 0 1px #0004;flex:none}
+  #tools.open #miniMore{background:var(--accent-soft);border-color:var(--accent)}
+  #toolsBody{display:flex;flex-direction:column;gap:10px;max-height:58vh;overflow:auto;padding:10px 0 4px}
+  #tools:not(.open) #toolsBody{visibility:hidden;transition:visibility 0s .25s}
+  #tools .sect{flex:none}
+  .swatches{grid-template-columns:repeat(6,44px)}
+  .grid2{grid-template-columns:repeat(4,1fr)}
+  .grid2 .btn{min-height:56px;font-size:12px}
+
+  #banner{top:auto;bottom:62px;font-size:13px;white-space:normal;padding:4px 4px 4px 14px;border-radius:22px;width:max-content}
+  #patWin{top:8px;right:8px;bottom:auto;width:200px;padding:4px 8px 8px;border-radius:14px}
+  #patWin .pw-head .t{font-size:14px}
+  #winSvg{width:140px;height:140px;margin:6px auto}
+  .pw-actions{gap:4px}
+  .pw-actions .btn{min-height:48px;font-size:12px;padding:2px;white-space:nowrap}
+  .pw-actions .btn .ic{font-size:17px}
+  .pw-actions .full{grid-column:auto}
+  #againLabel{font-size:11px}
+  #winClearBtn{min-height:48px!important;font-size:11px}
+  #winClearBtn span{white-space:normal}
+  #banner button{white-space:nowrap;flex:none;padding:0 12px}
+  .ex-head{flex-wrap:nowrap;gap:6px}
+  .ex-head h2{display:none}
+  .ex-head .btn{flex:1;font-size:12px;padding:0 6px;gap:4px;min-height:48px;white-space:nowrap}
+  #exBack{flex:none}
+  .ex-head .lt{display:none}
+  body.repeat #patWin{visibility:hidden}
 }
 
 /* ---- dialogs ---- */
@@ -200,12 +264,22 @@ body.repeat #mainSvg{cursor:crosshair}
         <button class="btn" id="repeatBtn"><span class="ic">🔁</span>くりかえし</button>
         <button class="btn" id="fractalBtn"><span class="ic">❄️</span>フラクタル</button>
         <button class="btn full" id="againBtn" disabled><span class="ic">➕</span><span id="againLabel">もういちど</span></button>
-        <button class="btn full danger" id="winClearBtn" style="min-height:44px"><span>まどを からにする</span></button>
+        <button class="btn full danger" id="winClearBtn" style="min-height:44px"><span>まどを<br>からにする</span></button>
       </div>
     </div>
   </main>
 
   <nav id="tools" class="panel" aria-label="ボタン">
+    <div id="sheetBar">
+      <div id="sheetGrip"><span></span></div>
+      <div id="miniBar">
+        <button class="mini" data-proxy="rotBtn"><span class="ic">🔄</span>まわす</button>
+        <button class="mini" data-proxy="undoBtn" id="miniUndo"><span class="ic">↩️</span>もどす</button>
+        <button class="mini" data-proxy="eraseBtn" id="miniErase"><span class="ic">🧽</span>けしごむ</button>
+        <button class="mini" id="miniMore"><i id="miniColor"></i>いろ・ほか</button>
+      </div>
+    </div>
+    <div id="toolsBody">
     <div class="sect">
       <h3>いろ</h3>
       <div class="swatches" id="colorSw"></div>
@@ -233,6 +307,7 @@ body.repeat #mainSvg{cursor:crosshair}
         <button class="btn primary" id="exportBtn"><span class="ic">💾</span>ほぞん<br>する</button>
       </div>
     </div>
+    </div>
   </nav>
 </div>
 
@@ -243,8 +318,8 @@ body.repeat #mainSvg{cursor:crosshair}
   <div class="ex-head">
     <button class="btn" id="exBack"><span>⬅️</span>もどる</button>
     <h2>ほぞんする</h2>
-    <button class="btn" id="exLong"><span>👆</span>ながおしで ほぞん</button>
-    <button class="btn primary" id="exSave"><span>💾</span>がぞうを ほぞん</button>
+    <button class="btn" id="exLong"><span>👆</span>ながおし<span class="lt">で ほぞん</span></button>
+    <button class="btn primary" id="exSave"><span>💾</span><span class="lt">がぞうを </span>ほぞん</button>
   </div>
   <div class="ex-body">
     <div id="exWrap"><canvas id="exCanvas"></canvas></div>
@@ -481,7 +556,7 @@ function renderSel(){
   b.selL.innerHTML = `<polygon class="s1" points="${pts}"/><polygon class="s2" points="${pts}"/>`;
 }
 function renderParts(){
-  const T = 22; let html = '';
+  const T = isPhone() ? 15 : 22; let html = '';
   for (const size of [1,2]){
     if (S.bigOnly && size === 1) continue;
     html += `<div class="plabel">${size===1?'ちいさい':'おおきい'}</div><div class="pgroup">`;
@@ -510,9 +585,14 @@ function renderTools(){
   $$('.pw-size button').forEach(b => b.classList.toggle('on', +b.dataset.n === win.w));
   const canAgain = fsess && fsess.version === version && fsess.stage < 3;
   $('#againBtn').disabled = !canAgain;
+  const ph = isPhone();
   $('#againLabel').textContent = fsess && fsess.version === version
-    ? (fsess.stage < 3 ? `もういちど（いま ${fsess.stage} / 3）` : 'これで さいご（3 / 3）')
+    ? (fsess.stage < 3 ? (ph ? `もういちど ${fsess.stage}/3` : `もういちど（いま ${fsess.stage} / 3）`) : (ph ? 'さいご 3/3' : 'これで さいご（3 / 3）'))
     : 'もういちど';
+  $('#miniErase').classList.toggle('on', S.mode === 'erase');
+  $('#miniUndo').disabled = undoStack.length === 0;
+  const selC = S.sel && findPiece(boards[S.sel.b], S.sel.id);
+  $('#miniColor').style.background = selC ? selC.color : S.color;
   $('#repeatBtn').classList.toggle('on', S.mode === 'repeat');
   document.body.classList.toggle('erasing', S.mode === 'erase');
   document.body.classList.toggle('repeat', S.mode === 'repeat');
@@ -666,6 +746,7 @@ partsList.addEventListener('pointerdown', e => {
 });
 
 mainSvg.addEventListener('pointerdown', e => {
+  closeSheet();
   ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if (ptrs.size === 2 && (!g || ['pan','pend','range','erase'].includes(g.t))){
     if (g && g.t === 'range') $('#rangeRect').hidden = true;
@@ -951,6 +1032,38 @@ window.addEventListener('keydown', e => {
   else if (e.key === 'r' || e.key === 'R') rotate();
   else if (e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteSel(); }
   else if (e.key === 'Escape'){ setMode('normal'); S.sel = null; renderSel(); renderTools(); }
+});
+
+/* =========================================================
+   スマホ：下から出すボタンシート
+   ========================================================= */
+function isPhone(){ return window.matchMedia('(max-width:600px)').matches; }
+const toolsEl = $('#tools');
+let closeT = 0;
+function openSheet(){ clearTimeout(closeT); if (isPhone()) toolsEl.classList.add('open'); }
+function closeSheet(){ toolsEl.classList.remove('open'); }
+function toggleSheet(){ toolsEl.classList.contains('open') ? closeSheet() : openSheet(); }
+let sheetSwipe = null, suppressClick = false;
+$('#sheetBar').addEventListener('pointerdown', e => {
+  sheetSwipe = {id:e.pointerId, y0:e.clientY, onBtn:!!e.target.closest('button')};
+});
+window.addEventListener('pointerup', e => {
+  if (!sheetSwipe || e.pointerId !== sheetSwipe.id) return;
+  const dy = e.clientY - sheetSwipe.y0, onBtn = sheetSwipe.onBtn;
+  sheetSwipe = null;
+  if (dy < -25){ openSheet(); suppressClick = true; }
+  else if (dy > 25){ closeSheet(); suppressClick = true; }
+  else if (!onBtn) toggleSheet();
+  if (suppressClick) setTimeout(() => suppressClick = false, 50);
+});
+$$('#miniBar .mini[data-proxy]').forEach(b => b.onclick = () => {
+  if (suppressClick) return;
+  document.getElementById(b.dataset.proxy).click();
+});
+$('#miniMore').onclick = () => { if (!suppressClick) toggleSheet(); };
+// シートの中のボタンを押したら、自動でしまう（マス目を広く使えるように）
+$('#toolsBody').addEventListener('click', e => {
+  if (e.isTrusted && isPhone() && e.target.closest('.btn, .sw')){ clearTimeout(closeT); closeT = setTimeout(closeSheet, 120); }
 });
 
 /* =========================================================
@@ -1269,7 +1382,12 @@ if (win.w === 3 && !$('#winGrid').getAttribute('d')) setWinN(3);
 nextId = Math.max(nextId, 1);
 renderAll();
 requestAnimationFrame(() => { fitAll(); });
-window.addEventListener('resize', () => { applyView(); if (!$('#exportView').hidden) fitExCanvas(); });
+let wasPhone = isPhone();
+window.addEventListener('resize', () => {
+  applyView();
+  if (!$('#exportView').hidden) fitExCanvas();
+  if (isPhone() !== wasPhone){ wasPhone = isPhone(); closeSheet(); renderParts(); renderTools(); }
+});
 
 // テスト・デバッグ用（遊びには使わない）
 window.__mosaic = {main, win, S, view, ex, get version(){ return version; }, undo, fitAll};
