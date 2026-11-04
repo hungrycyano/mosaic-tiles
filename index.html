@@ -1,0 +1,1279 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>モザイク・タイル</title>
+<style>
+:root{
+  --bg:#fbf5ea; --panel:#ffffff; --ink:#3a3330; --sub:#8a7a6a;
+  --accent:#ff8a3d; --accent-soft:#fff0e2; --line:#e8dfd1; --hot:#ff4d4f;
+  --font:"Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","BIZ UDPGothic","Yu Gothic UI","Yu Gothic","Meiryo",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--font);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{font:inherit;color:inherit;touch-action:manipulation;cursor:pointer}
+
+#app{display:grid;height:100vh;height:100dvh;gap:8px;
+  padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+  grid-template-columns:140px minmax(0,1fr) 228px;grid-template-rows:auto minmax(0,1fr);
+  grid-template-areas:"head head head" "parts stage tools"}
+header{grid-area:head;display:flex;align-items:baseline;gap:12px;padding:0 6px}
+header h1{margin:0;font-size:22px;letter-spacing:.04em}
+header h1 small{font-size:13px;color:var(--sub);font-weight:400;margin-left:6px}
+header .sub{font-size:15px;color:var(--sub);font-weight:700}
+.panel{background:var(--panel);border-radius:18px;box-shadow:0 1px 0 var(--line),0 0 0 1px var(--line) inset}
+
+/* ---- parts ---- */
+#parts{grid-area:parts;position:relative;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;transition:background .15s}
+#parts .ptitle{font-weight:700;font-size:15px}
+#partsList{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%}
+.plabel{font-size:12px;color:var(--sub);font-weight:700;margin-top:4px}
+.pgroup{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px}
+.part{min-width:48px;min-height:48px;display:flex;align-items:center;justify-content:center;padding:4px;border-radius:12px;cursor:grab;touch-action:none}
+.part:hover{background:#f6f1ea}
+.part svg{overflow:visible;display:block}
+#bigOnlyBtn{margin-top:auto;width:100%}
+#trashMsg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;
+  font-weight:700;color:var(--hot);font-size:15px;text-align:center;pointer-events:none;background:rgba(255,227,227,.85);border-radius:18px}
+#trashMsg .ic{font-size:40px}
+#parts.trash-hot{box-shadow:0 0 0 4px var(--hot) inset;background:#ffe3e3}
+#parts.trash-hot #trashMsg{display:flex}
+
+/* ---- stage ---- */
+#stage{grid-area:stage;position:relative;border-radius:18px;overflow:hidden;background:#cdd3db;min-width:0;min-height:0}
+#mainSvg{width:100%;height:100%;display:block;touch-action:none}
+.gridlines{fill:none;stroke:#cfd5dd;stroke-width:1;vector-effect:non-scaling-stroke}
+.pieces polygon{stroke-width:.8px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.pieces.border polygon{stroke:#2b2624;stroke-width:2px}
+.ghost polygon{opacity:.45;stroke:#3a3330;stroke-width:1.5px;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;pointer-events:none}
+.sel polygon{fill:none;vector-effect:non-scaling-stroke;pointer-events:none;stroke-linejoin:round}
+.sel .s1{stroke:#fff;stroke-width:5px}
+.sel .s2{stroke:#222;stroke-width:2.5px;stroke-dasharray:7 5;animation:ants 1s linear infinite}
+@keyframes ants{to{stroke-dashoffset:-24}}
+#rangeRect{fill:rgba(255,138,61,.18);stroke:var(--accent);stroke-width:3px;stroke-dasharray:8 5;vector-effect:non-scaling-stroke;pointer-events:none}
+body.erasing #mainSvg, body.erasing #winSvg{cursor:crosshair}
+body.repeat #mainSvg{cursor:crosshair}
+
+#viewCtl{position:absolute;left:10px;bottom:10px;display:flex;gap:6px;z-index:4}
+.round{width:50px;height:50px;border-radius:50%;border:2px solid var(--line);background:#fff;font-size:22px;font-weight:700;box-shadow:0 2px 6px #0002;display:flex;align-items:center;justify-content:center;padding:0}
+.round.wide{width:auto;border-radius:25px;padding:0 14px;font-size:15px}
+
+#banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#3a3330;color:#fff;border-radius:999px;
+  padding:6px 6px 6px 18px;display:flex;gap:10px;align-items:center;z-index:7;font-weight:700;font-size:15px;white-space:nowrap;box-shadow:0 4px 14px #0004;max-width:calc(100% - 20px)}
+#banner span{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){ header h1 small{display:none} }
+#banner button{border:0;background:#fff;color:var(--ink);border-radius:999px;min-height:44px;padding:0 16px;font-weight:700}
+
+/* ---- pattern window ---- */
+#patWin{position:absolute;top:10px;right:10px;width:232px;background:#fff;border-radius:18px;box-shadow:0 8px 28px #0003;padding:8px 10px 10px;z-index:6}
+.pw-head{display:flex;align-items:center;gap:6px;font-weight:700;cursor:move;touch-action:none;padding:2px 0 4px}
+.pw-head .t{flex:1}
+.pw-close{width:44px;height:44px;border-radius:50%;border:0;background:#f3eee7;font-size:18px}
+.pw-size{display:flex;gap:4px;align-items:center;font-size:13px;font-weight:700}
+.pw-size button{flex:1;min-height:44px;border:2px solid var(--line);border-radius:12px;background:#fff;font-weight:700}
+.pw-size button.on{border-color:var(--accent);background:var(--accent-soft)}
+#winSvg{width:184px;height:184px;display:block;margin:8px auto;touch-action:none;border-radius:6px;box-shadow:0 0 0 2px #b9c0c9}
+.pw-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pw-actions .btn{min-height:52px;font-size:13px}
+.pw-actions .full{grid-column:1 / -1}
+
+/* ---- tools ---- */
+#tools{grid-area:tools;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+.sect{display:flex;flex-direction:column;gap:6px}
+.sect h3{margin:0;font-size:13px;color:var(--sub)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.swatches{display:grid;grid-template-columns:repeat(4,44px);gap:6px;justify-content:space-between}
+.sw{width:44px;height:44px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #0003;padding:0}
+.sw.on{box-shadow:0 0 0 3px var(--ink)}
+.btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:58px;min-width:44px;padding:4px 6px;
+  border:2px solid var(--line);border-radius:14px;background:#fff;font-size:14px;font-weight:700;line-height:1.15;text-align:center}
+.btn .ic{font-size:22px;line-height:1}
+.btn.on{background:var(--accent-soft);border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:#c62828}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.38;cursor:default;transform:none}
+.btn small{font-size:11px;font-weight:700;color:var(--sub)}
+.btn.on small{color:var(--accent)}
+
+/* ---- narrow / portrait ---- */
+@media (max-width:820px), (max-aspect-ratio:1/1){
+  #app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-areas:"head" "parts" "stage" "tools"}
+  header h1{font-size:18px;white-space:nowrap}
+  header{flex-wrap:nowrap;overflow:hidden}
+  header .sub{white-space:nowrap}
+  #parts{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:6px 8px}
+  #parts .ptitle{display:none}
+  #partsList{flex-direction:row;width:auto}
+  .plabel{display:none}
+  .pgroup{flex-wrap:nowrap}
+  #bigOnlyBtn{margin:0 0 0 auto;width:auto;flex:none}
+  #tools{flex-direction:row;flex-wrap:wrap;max-height:36vh;align-items:flex-start}
+  .sect{flex:1 1 200px}
+  #patWin{top:auto;bottom:70px;right:8px}
+}
+
+/* ---- dialogs ---- */
+.overlay{position:fixed;inset:0;background:rgba(40,30,20,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.dialog{background:#fff;border-radius:22px;padding:22px;max-width:420px;width:100%;box-shadow:0 10px 40px #0004;text-align:center}
+.dialog .msg{font-size:19px;font-weight:700;line-height:1.6;margin-bottom:18px;white-space:pre-line}
+.dialog .mBtns{display:flex;gap:10px}
+.dialog .mBtns .btn{flex:1;font-size:18px}
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:#3a3330;color:#fff;padding:12px 22px;border-radius:999px;
+  font-weight:700;font-size:16px;opacity:0;transition:.25s;pointer-events:none;z-index:120;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#dragLayer{position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:60;overflow:visible}
+#dragLayer polygon{stroke:rgba(0,0,0,.35);stroke-width:1px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+
+/* ---- export ---- */
+#exportView{position:fixed;inset:0;background:var(--bg);z-index:80;display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;
+  padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
+.ex-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ex-head h2{margin:0 8px;font-size:20px;flex:1}
+.ex-head .btn{flex-direction:row;gap:6px;min-height:50px;padding:0 14px;font-size:15px}
+.ex-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:8px;min-height:0}
+#exWrap{position:relative;display:flex;align-items:center;justify-content:center;background:repeating-conic-gradient(#e7e1d8 0 25%,#f3eee7 0 50%) 0 0/24px 24px;border-radius:18px;overflow:hidden;min-height:0}
+#exCanvas{display:block;box-shadow:0 4px 18px #0003;touch-action:none;background:#fff}
+#exCanvas.pen{cursor:crosshair}
+.ex-tools{overflow:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ex-tools textarea{width:100%;font:inherit;font-size:18px;padding:10px;border:2px solid var(--line);border-radius:12px;resize:vertical;min-height:64px;-webkit-user-select:text;user-select:text}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.seg .btn{min-height:48px}
+.hint{font-size:13px;color:var(--sub);line-height:1.5;margin:0}
+@media (max-width:820px), (max-aspect-ratio:1/1){
+  .ex-body{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  .ex-tools{max-height:40vh}
+}
+#imgView .dialog{max-width:min(92vw,900px)}
+#imgView img{max-width:100%;max-height:60vh;display:block;margin:0 auto 14px;box-shadow:0 2px 10px #0003;-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>モザイク・タイル<small>Mosaic Tiles</small></h1>
+    <span class="sub">しきつめて あそぼう</span>
+  </header>
+
+  <aside id="parts" class="panel" aria-label="ずけい">
+    <div class="ptitle">ずけい</div>
+    <div id="partsList"></div>
+    <button id="bigOnlyBtn" class="btn"><span class="ic">🔍</span>おおきいの<br>だけ</button>
+    <div id="trashMsg"><span class="ic">🗑️</span>ここに いれると<br>きえるよ</div>
+  </aside>
+
+  <main id="stage">
+    <svg id="mainSvg" xmlns="http://www.w3.org/2000/svg">
+      <g id="mainView">
+        <rect id="worldBg" x="0" y="0" width="100" height="100" fill="#eef1f4"/>
+        <path id="mainGrid" class="gridlines"/>
+        <g id="mainPieces" class="pieces"></g>
+        <g id="mainGhost" class="ghost"></g>
+        <g id="mainSel" class="sel"></g>
+        <rect id="rangeRect" hidden/>
+      </g>
+    </svg>
+    <div id="banner" hidden><span id="bannerText"></span><button id="bannerCancel">やめる</button></div>
+    <div id="viewCtl">
+      <button class="round" id="zoomIn" aria-label="おおきく">＋</button>
+      <button class="round" id="zoomOut" aria-label="ちいさく">－</button>
+      <button class="round wide" id="fitBtn">🔭 ぜんたい</button>
+    </div>
+    <div id="patWin" hidden>
+      <div class="pw-head" id="pwHead"><span>🧩</span><span class="t">パターンまど</span><button class="pw-close" id="pwClose" aria-label="とじる">✕</button></div>
+      <div class="pw-size">
+        <button data-n="2">2×2</button><button data-n="3">3×3</button><button data-n="4">4×4</button>
+      </div>
+      <svg id="winSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3 3">
+        <rect id="winBg" x="0" y="0" width="3" height="3" fill="#ffffff"/>
+        <path id="winGrid" class="gridlines"/>
+        <g id="winPieces" class="pieces"></g>
+        <g id="winGhost" class="ghost"></g>
+        <g id="winSel" class="sel"></g>
+      </svg>
+      <div class="pw-actions">
+        <button class="btn" id="repeatBtn"><span class="ic">🔁</span>くりかえし</button>
+        <button class="btn" id="fractalBtn"><span class="ic">❄️</span>フラクタル</button>
+        <button class="btn full" id="againBtn" disabled><span class="ic">➕</span><span id="againLabel">もういちど</span></button>
+        <button class="btn full danger" id="winClearBtn" style="min-height:44px"><span>まどを からにする</span></button>
+      </div>
+    </div>
+  </main>
+
+  <nav id="tools" class="panel" aria-label="ボタン">
+    <div class="sect">
+      <h3>いろ</h3>
+      <div class="swatches" id="colorSw"></div>
+    </div>
+    <div class="sect">
+      <h3>へんしゅう</h3>
+      <div class="grid2">
+        <button class="btn" id="rotBtn"><span class="ic">🔄</span>まわす</button>
+        <button class="btn" id="eraseBtn"><span class="ic">🧽</span>けしごむ</button>
+        <button class="btn" id="undoBtn"><span class="ic">↩️</span>ひとつ<br>もどす</button>
+        <button class="btn danger" id="clearBtn"><span class="ic">🗑️</span>ぜんぶ<br>けす</button>
+      </div>
+    </div>
+    <div class="sect">
+      <h3>みため</h3>
+      <div class="grid2">
+        <button class="btn" id="gridBtn"><span class="ic">▦</span>ますめ<small id="gridState">あり</small></button>
+        <button class="btn" id="borderBtn"><span class="ic">⬚</span>わくせん<small id="borderState">なし</small></button>
+      </div>
+    </div>
+    <div class="sect">
+      <h3>おうよう</h3>
+      <div class="grid2">
+        <button class="btn" id="patBtn"><span class="ic">🧩</span>パターン<br>づくり</button>
+        <button class="btn primary" id="exportBtn"><span class="ic">💾</span>ほぞん<br>する</button>
+      </div>
+    </div>
+  </nav>
+</div>
+
+<svg id="dragLayer" xmlns="http://www.w3.org/2000/svg" hidden><g id="dragG"></g></svg>
+
+<!-- 書き出し画面 -->
+<div id="exportView" hidden>
+  <div class="ex-head">
+    <button class="btn" id="exBack"><span>⬅️</span>もどる</button>
+    <h2>ほぞんする</h2>
+    <button class="btn" id="exLong"><span>👆</span>ながおしで ほぞん</button>
+    <button class="btn primary" id="exSave"><span>💾</span>がぞうを ほぞん</button>
+  </div>
+  <div class="ex-body">
+    <div id="exWrap"><canvas id="exCanvas"></canvas></div>
+    <div class="ex-tools panel">
+      <div class="tabs">
+        <button class="btn" data-tab="bg"><span class="ic">🎨</span>はいけい</button>
+        <button class="btn" data-tab="text"><span class="ic">🔤</span>もじ</button>
+        <button class="btn" data-tab="pen"><span class="ic">🖊️</span>ペン</button>
+      </div>
+      <div class="sect" data-panel="bg">
+        <h3>はいけいの いろ</h3>
+        <div class="swatches" id="bgSw"></div>
+      </div>
+      <div class="sect" data-panel="text">
+        <h3>もじ（もようの そとに かくよ）</h3>
+        <textarea id="exText" maxlength="80" rows="2" placeholder="なまえ や だいめい"></textarea>
+        <h3>ばしょ</h3>
+        <div class="seg" id="tPos"><button class="btn" data-v="top">⬆️ うえ</button><button class="btn" data-v="bottom">⬇️ した</button><span></span></div>
+        <div class="seg" id="tAlign"><button class="btn" data-v="left">ひだり</button><button class="btn" data-v="center">まんなか</button><button class="btn" data-v="right">みぎ</button></div>
+        <h3>おおきさ</h3>
+        <div class="seg" id="tSize"><button class="btn" data-v="0">ちいさい</button><button class="btn" data-v="1">ふつう</button><button class="btn" data-v="2">おおきい</button></div>
+        <h3>もじの いろ</h3>
+        <div class="swatches" id="tSw"></div>
+      </div>
+      <div class="sect" data-panel="pen">
+        <p class="hint">がぞうの うえを なぞると かけるよ。もようの うえにも かけるよ。</p>
+        <h3>ふとさ</h3>
+        <div class="seg" id="penW"><button class="btn" data-v="0">ほそい</button><button class="btn" data-v="1">ふつう</button><button class="btn" data-v="2">ふとい</button></div>
+        <h3>ペンの いろ</h3>
+        <div class="swatches" id="penSw"></div>
+        <div class="seg">
+          <button class="btn" id="penEraseBtn"><span class="ic">🧽</span>けしごむ</button>
+          <button class="btn" id="penUndoBtn"><span class="ic">↩️</span>もどす</button>
+          <button class="btn danger" id="penClearBtn"><span class="ic">🗑️</span>ぜんぶ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal" class="overlay" hidden>
+  <div class="dialog"><div class="msg" id="mMsg"></div>
+    <div class="mBtns"><button class="btn" id="mNo">いいえ</button><button class="btn primary" id="mYes">はい</button></div>
+  </div>
+</div>
+<div id="imgView" class="overlay" hidden>
+  <div class="dialog"><img id="imgViewImg" alt="できた もよう">
+    <div class="msg" style="font-size:16px;margin-bottom:12px">がぞうを ながおし して<br>「“しゃしん”に ほぞん」を えらんでね</div>
+    <div class="mBtns"><button class="btn" id="imgClose">とじる</button></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* =========================================================
+   定数
+   ========================================================= */
+const WORLD = 100;              // しきつめ画面の広さ（マス）
+const STORE_KEY = 'mosaic-tiles-v1';
+const COLORS = ['#e8382f','#f68b1f','#ffd31a','#9bd13b','#1f9d55','#4cc3f0',
+                '#2459d6','#8a4fd1','#f77fb5','#8b5a2b','#ffffff','#222222'];
+const BG_COLORS = ['#ffffff','#fff6dc','#e6f4ff','#ffe8f0','#eaf7e1','#eeeeee',
+                   '#ffd31a','#9bd13b','#4cc3f0','#f77fb5','#2459d6','#222222'];
+const FONT = getComputedStyle(document.documentElement).getPropertyValue('--font').trim() || 'sans-serif';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+/* =========================================================
+   図形の幾何
+   piece = {id, type:'sq'|'rect'|'tri', size:1|2, x, y, rot, color}
+   x,y はバウンディングボックス左上（マス単位）
+   tri の rot: 直角の位置 0=左下 1=左上 2=右上 3=右下（時計回り）
+   rect の rot: 0=よこ 1=たて
+   ========================================================= */
+function dims(p){
+  const s = p.size;
+  if (p.type === 'rect') return (p.rot % 2 === 0) ? {w:2*s, h:s} : {w:s, h:2*s};
+  return {w:s, h:s};
+}
+// 各マスを中心から4つのくさびに分けたビットで当たり判定する
+// 上=1 右=2 下=4 左=8。直角三角形（小）は2つのくさびを占める
+const CORNER_MASK = [12, 9, 3, 6];           // 左下, 左上, 右上, 右下
+const CORNER_POS  = [[0,1],[0,0],[1,0],[1,1]];
+function cellsOf(p){
+  const out = [];
+  if (p.type !== 'tri'){
+    const {w,h} = dims(p);
+    for (let j=0;j<h;j++) for (let i=0;i<w;i++) out.push([p.x+i, p.y+j, 15]);
+    return out;
+  }
+  const m = CORNER_MASK[p.rot];
+  if (p.size === 1) return [[p.x, p.y, m]];
+  for (let c=0;c<4;c++){
+    const [i,j] = CORNER_POS[c];
+    const mm = c === p.rot ? 15 : (c === (p.rot+2)%4 ? 0 : m);
+    if (mm) out.push([p.x+i, p.y+j, mm]);
+  }
+  return out;
+}
+function polyPts(p){
+  const {w,h} = dims(p), x = p.x, y = p.y;
+  const TL=[x,y], TR=[x+w,y], BR=[x+w,y+h], BL=[x,y+h];
+  if (p.type !== 'tri') return [TL,TR,BR,BL];
+  return [[TL,BL,BR],[TR,TL,BL],[TL,TR,BR],[TR,BR,BL]][p.rot];
+}
+function pieceSVG(p, noId){
+  const pts = polyPts(p).map(a => a[0]+','+a[1]).join(' ');
+  return `<polygon ${noId?'':`data-id="${p.id}" `}points="${pts}" fill="${p.color}" stroke="${p.color}"/>`;
+}
+
+/* =========================================================
+   ボード（しきつめ画面 と パターン窓）
+   ========================================================= */
+let nextId = 1;
+const newId = () => nextId++;
+const main = {id:'main', w:WORLD, h:WORLD, pieces:[]};
+const win  = {id:'win',  w:3,     h:3,     pieces:[]};
+const boards = {main, win};
+
+function occMap(board, exclId){
+  const m = new Map();
+  for (const p of board.pieces){
+    if (p.id === exclId) continue;
+    for (const [cx,cy,mk] of cellsOf(p)){
+      const k = cx + ',' + cy;
+      m.set(k, (m.get(k)||0) | mk);
+    }
+  }
+  return m;
+}
+function fits(board, p, occ){
+  const {w,h} = dims(p);
+  if (p.x < 0 || p.y < 0 || p.x + w > board.w || p.y + h > board.h) return false;
+  for (const [cx,cy,mk] of cellsOf(p)) if ((occ.get(cx+','+cy)||0) & mk) return false;
+  return true;
+}
+const OFFSETS = (() => {
+  const a = [], R = 10;
+  for (let dy=-R; dy<=R; dy++) for (let dx=-R; dx<=R; dx++) a.push([dx,dy,dx*dx+dy*dy]);
+  return a.sort((p,q) => p[2]-q[2]);
+})();
+function nearestFree(board, p, occ, R = 8){
+  for (const [dx,dy,d2] of OFFSETS){
+    if (d2 > R*R) break;
+    const q = {...p, x:p.x+dx, y:p.y+dy};
+    if (fits(board, q, occ)) return q;
+  }
+  return null;
+}
+function overlapsRect(p, r){
+  for (const [cx,cy] of cellsOf(p))
+    if (cx >= r.x && cx < r.x + r.w && cy >= r.y && cy < r.y + r.h) return true;
+  return false;
+}
+function findPiece(board, id){ return board.pieces.find(p => p.id === id); }
+
+/* =========================================================
+   状態
+   ========================================================= */
+const S = {
+  color: COLORS[6], gridOn: true, borderOn: false, bigOnly: false,
+  mode: 'normal',           // normal | erase | repeat
+  palRot: {tri:0, rect:0},
+  winOpen: false,
+  sel: null,                // {b:'main'|'win', id}
+};
+let view = {s:40, tx:0, ty:0};
+let undoStack = [];
+let version = 0;
+let fsess = null;           // フラクタルの進行状況
+const ex = {bg:'#ffffff', text:'', pos:'bottom', align:'center', size:1, tcolor:'#222222',
+            strokes:[], penColor:'#e8382f', penW:1, penErase:false, tab:'bg'};
+
+/* =========================================================
+   DOM
+   ========================================================= */
+const mainSvg = $('#mainSvg'), mainView = $('#mainView');
+const winSvg = $('#winSvg');
+main.layer = $('#mainPieces'); main.ghost = $('#mainGhost'); main.selL = $('#mainSel');
+win.layer  = $('#winPieces');  win.ghost  = $('#winGhost');  win.selL  = $('#winSel');
+main.toWorld = (cx,cy) => { const r = mainSvg.getBoundingClientRect(); return {x:(cx-r.left-view.tx)/view.s, y:(cy-r.top-view.ty)/view.s}; };
+main.ppc = () => view.s;
+win.toWorld = (cx,cy) => { const r = winSvg.getBoundingClientRect(); return {x:(cx-r.left)/r.width*win.w, y:(cy-r.top)/r.height*win.h}; };
+win.ppc = () => winSvg.getBoundingClientRect().width / win.w;
+const partsEl = $('#parts'), partsList = $('#partsList');
+const dragLayer = $('#dragLayer'), dragG = $('#dragG');
+
+/* =========================================================
+   小さなUI部品
+   ========================================================= */
+let toastT = 0;
+function toast(msg, ms = 2200){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms);
+}
+function ask(msg, yes = 'はい', no = 'いいえ'){
+  return new Promise(res => {
+    const m = $('#modal'); $('#mMsg').textContent = msg;
+    $('#mYes').textContent = yes; $('#mNo').textContent = no;
+    m.hidden = false;
+    const done = v => { m.hidden = true; $('#mYes').onclick = $('#mNo').onclick = null; res(v); };
+    $('#mYes').onclick = () => done(true);
+    $('#mNo').onclick = () => done(false);
+  });
+}
+function banner(text){
+  if (!text){ $('#banner').hidden = true; return; }
+  $('#bannerText').textContent = text; $('#banner').hidden = false;
+}
+
+/* =========================================================
+   表示
+   ========================================================= */
+function gridPath(w, h){
+  let d = '';
+  for (let i=0;i<=w;i++) d += `M${i} 0V${h}`;
+  for (let j=0;j<=h;j++) d += `M0 ${j}H${w}`;
+  return d;
+}
+$('#mainGrid').setAttribute('d', gridPath(WORLD, WORLD));
+
+function renderBoard(b){
+  b.layer.innerHTML = b.pieces.map(p => pieceSVG(p)).join('');
+}
+function renderSel(){
+  main.selL.innerHTML = ''; win.selL.innerHTML = '';
+  if (!S.sel) return;
+  const b = boards[S.sel.b], p = findPiece(b, S.sel.id);
+  if (!p){ S.sel = null; return; }
+  const pts = polyPts(p).map(a => a.join(',')).join(' ');
+  b.selL.innerHTML = `<polygon class="s1" points="${pts}"/><polygon class="s2" points="${pts}"/>`;
+}
+function renderParts(){
+  const T = 22; let html = '';
+  for (const size of [1,2]){
+    if (S.bigOnly && size === 1) continue;
+    html += `<div class="plabel">${size===1?'ちいさい':'おおきい'}</div><div class="pgroup">`;
+    PART_ITEMS.forEach((it, idx) => {
+      if (it.size !== size) return;
+      const p = {...protoOf(it), x:0, y:0}, d = dims(p);
+      html += `<div class="part" data-idx="${idx}"><svg width="${d.w*T}" height="${d.h*T}" viewBox="0 0 ${d.w} ${d.h}" class="pieces${S.borderOn?' border':''}">${pieceSVG(p,true)}</svg></div>`;
+    });
+    html += '</div>';
+  }
+  partsList.innerHTML = html;
+  $('#bigOnlyBtn').classList.toggle('on', S.bigOnly);
+}
+function renderTools(){
+  $$('#colorSw .sw').forEach(b => {
+    const selP = S.sel && findPiece(boards[S.sel.b], S.sel.id);
+    b.classList.toggle('on', b.dataset.c === (selP ? selP.color : S.color));
+  });
+  $('#eraseBtn').classList.toggle('on', S.mode === 'erase');
+  $('#gridBtn').classList.toggle('on', S.gridOn);
+  $('#gridState').textContent = S.gridOn ? 'あり' : 'なし';
+  $('#borderBtn').classList.toggle('on', S.borderOn);
+  $('#borderState').textContent = S.borderOn ? 'あり' : 'なし';
+  $('#patBtn').classList.toggle('on', S.winOpen);
+  $('#undoBtn').disabled = undoStack.length === 0;
+  $$('.pw-size button').forEach(b => b.classList.toggle('on', +b.dataset.n === win.w));
+  const canAgain = fsess && fsess.version === version && fsess.stage < 3;
+  $('#againBtn').disabled = !canAgain;
+  $('#againLabel').textContent = fsess && fsess.version === version
+    ? (fsess.stage < 3 ? `もういちど（いま ${fsess.stage} / 3）` : 'これで さいご（3 / 3）')
+    : 'もういちど';
+  $('#repeatBtn').classList.toggle('on', S.mode === 'repeat');
+  document.body.classList.toggle('erasing', S.mode === 'erase');
+  document.body.classList.toggle('repeat', S.mode === 'repeat');
+}
+function renderGridState(){
+  $('#mainGrid').style.display = S.gridOn ? '' : 'none';
+  $('#worldBg').setAttribute('fill', S.gridOn ? '#eef1f4' : '#ffffff');
+  main.layer.classList.toggle('border', S.borderOn);
+  win.layer.classList.toggle('border', S.borderOn);
+}
+function renderAll(){
+  renderBoard(main); renderBoard(win); renderSel(); renderGridState(); renderParts(); renderTools();
+}
+
+/* ---------- 画面の移動・拡大 ---------- */
+function stageSize(){ const r = mainSvg.getBoundingClientRect(); return {W:r.width, H:r.height}; }
+function clampS(s){ const {W,H} = stageSize(); const mn = Math.min(6, Math.min(W,H)/(WORLD+4)); return Math.max(mn, Math.min(120, s)); }
+function applyView(){
+  const {W,H} = stageSize(), ww = WORLD*view.s, M = 60;
+  view.tx = ww + 2*M <= W ? (W-ww)/2 : Math.min(M, Math.max(W-ww-M, view.tx));
+  view.ty = ww + 2*M <= H ? (H-ww)/2 : Math.min(M, Math.max(H-ww-M, view.ty));
+  mainView.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.s})`);
+}
+function zoomAt(f, cx, cy){
+  const r = mainSvg.getBoundingClientRect();
+  if (cx === undefined){ cx = r.left + r.width/2; cy = r.top + r.height/2; }
+  const w = main.toWorld(cx, cy);
+  view.s = clampS(view.s * f);
+  view.tx = cx - r.left - w.x*view.s; view.ty = cy - r.top - w.y*view.s;
+  applyView();
+}
+function fitRect(x, y, w, h){
+  const {W,H} = stageSize();
+  view.s = clampS(Math.min(48, W/(w+3), H/(h+3)));
+  view.tx = W/2 - (x+w/2)*view.s; view.ty = H/2 - (y+h/2)*view.s;
+  applyView();
+}
+function piecesBBox(ps){
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  for (const p of ps){ const d = dims(p); x0=Math.min(x0,p.x); y0=Math.min(y0,p.y); x1=Math.max(x1,p.x+d.w); y1=Math.max(y1,p.y+d.h); }
+  return ps.length ? {x:x0, y:y0, w:x1-x0, h:y1-y0} : null;
+}
+function fitAll(){
+  const bb = piecesBBox(main.pieces);
+  if (bb) fitRect(bb.x, bb.y, bb.w, bb.h);
+  else { const {W,H} = stageSize(); view.s = clampS(Math.max(26, Math.min(48, Math.min(W,H)/14))); view.tx = W/2 - WORLD/2*view.s; view.ty = H/2 - WORLD/2*view.s; applyView(); }
+}
+function viewCenterCell(){
+  const r = mainSvg.getBoundingClientRect();
+  const w = main.toWorld(r.left + r.width/2, r.top + r.height/2);
+  return {x:Math.floor(w.x), y:Math.floor(w.y)};
+}
+function isVisible(r){
+  const a = main.toWorld(...screenOf(0,0)), b = main.toWorld(...screenOf(1,1));
+  return r.x >= a.x && r.y >= a.y && r.x + r.w <= b.x && r.y + r.h <= b.y;
+}
+function screenOf(fx, fy){ const r = mainSvg.getBoundingClientRect(); return [r.left + r.width*fx, r.top + r.height*fy]; }
+
+/* =========================================================
+   変更・アンドゥ・保存
+   ========================================================= */
+function snapshot(withGrid){
+  return {main: main.pieces.map(p => ({...p})), win: win.pieces.map(p => ({...p})), winN: win.w, grid: withGrid ? S.gridOn : undefined};
+}
+function pushUndo(withGrid = false){
+  undoStack.push(snapshot(withGrid));
+  if (undoStack.length > 60) undoStack.shift();
+}
+function changed(){ version++; renderAll(); save(); }
+function undo(){
+  const s = undoStack.pop();
+  if (!s){ toast('もどせるものが ないよ'); return; }
+  main.pieces = s.main;
+  if (s.winN !== win.w) setWinN(s.winN);
+  win.pieces = s.win;
+  if (s.grid !== undefined) S.gridOn = s.grid;
+  S.sel = null;
+  changed();
+}
+
+let saveT = 0;
+const TYPES = ['sq','rect','tri'];
+const enc = ps => ps.map(p => [TYPES.indexOf(p.type), p.size, p.x, p.y, p.rot, p.color]);
+const dec = a => (a||[]).map(([t,s,x,y,r,c]) => ({id:newId(), type:TYPES[t], size:s, x, y, rot:r, color:c}));
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        v:1, main:enc(main.pieces), win:enc(win.pieces), winN:win.w,
+        gridOn:S.gridOn, borderOn:S.borderOn, bigOnly:S.bigOnly, color:S.color, palRot:S.palRot,
+        ex:{bg:ex.bg, text:ex.text, pos:ex.pos, align:ex.align, size:ex.size, tcolor:ex.tcolor, strokes:ex.strokes, penColor:ex.penColor, penW:ex.penW},
+      }));
+    } catch(e){ /* 保存できなくても遊べる */ }
+  }, 300);
+}
+function load(){
+  try {
+    const d = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (!d || d.v !== 1) return;
+    main.pieces = dec(d.main);
+    setWinN(d.winN || 3);
+    win.pieces = dec(d.win);
+    S.gridOn = d.gridOn !== false; S.borderOn = !!d.borderOn; S.bigOnly = !!d.bigOnly;
+    if (d.color) S.color = d.color;
+    if (d.palRot) S.palRot = {tri:d.palRot.tri|0, rect:d.palRot.rect|0};
+    if (d.ex) Object.assign(ex, d.ex);
+  } catch(e){ /* こわれたデータは無視 */ }
+}
+
+/* =========================================================
+   部品置き場
+   ========================================================= */
+const PART_ITEMS = [{type:'sq',size:1},{type:'rect',size:1},{type:'tri',size:1},
+                    {type:'sq',size:2},{type:'rect',size:2},{type:'tri',size:2}];
+function protoOf(it){ return {type:it.type, size:it.size, rot:it.type === 'sq' ? 0 : S.palRot[it.type], color:S.color}; }
+
+function placeAtCenter(it){
+  const proto = protoOf(it), d = dims(proto), c = viewCenterCell();
+  const cand = {...proto, x:Math.round(c.x + .5 - d.w/2), y:Math.round(c.y + .5 - d.h/2)};
+  const fin = nearestFree(main, cand, occMap(main), 10);
+  if (!fin){ toast('おける ばしょが ないよ'); return; }
+  pushUndo();
+  const np = {...fin, id:newId()};
+  main.pieces.push(np);
+  S.sel = {b:'main', id:np.id};
+  changed();
+}
+
+/* =========================================================
+   ポインタ操作（ドラッグ・パン・ピンチ・範囲・消しゴム）
+   ========================================================= */
+const ptrs = new Map();    // しきつめ画面に触れている指
+let g = null;              // いまの操作
+const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+
+function boardAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  if (!el) return {};
+  if (el.closest('#parts')) return {trash:true};
+  if (el.closest('#winSvg')) return {board:win, el};
+  if (el.closest('#mainSvg')) return {board:main, el};
+  return {};
+}
+
+partsList.addEventListener('pointerdown', e => {
+  const part = e.target.closest('.part');
+  if (!part || g) return;
+  e.preventDefault();
+  g = {t:'palette', id:e.pointerId, it:PART_ITEMS[+part.dataset.idx], x0:e.clientX, y0:e.clientY};
+});
+
+mainSvg.addEventListener('pointerdown', e => {
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (ptrs.size === 2 && (!g || ['pan','pend','range','erase'].includes(g.t))){
+    if (g && g.t === 'range') $('#rangeRect').hidden = true;
+    if (g && g.t === 'erase') finishErase();
+    startPinch(); return;
+  }
+  if (ptrs.size > 1 || g) return;
+  e.preventDefault();
+  if (S.mode === 'repeat'){
+    const w = main.toWorld(e.clientX, e.clientY);
+    const c = {x:clampI(Math.floor(w.x),0,WORLD-1), y:clampI(Math.floor(w.y),0,WORLD-1)};
+    g = {t:'range', id:e.pointerId, c0:c, c1:c};
+    drawRange(); return;
+  }
+  const el = e.target.closest('[data-id]');
+  if (el && S.mode === 'erase'){ g = {t:'erase', id:e.pointerId, pushed:false}; eraseEl(main, +el.dataset.id, el); return; }
+  if (el){ g = {t:'pend', id:e.pointerId, board:main, pid:+el.dataset.id, x0:e.clientX, y0:e.clientY}; return; }
+  g = {t:'pan', id:e.pointerId, x0:e.clientX, y0:e.clientY, tx0:view.tx, ty0:view.ty, moved:false};
+});
+
+winSvg.addEventListener('pointerdown', e => {
+  if (g) return;
+  e.preventDefault();
+  const el = e.target.closest('[data-id]');
+  if (el && S.mode === 'erase'){ g = {t:'erase', id:e.pointerId, pushed:false}; eraseEl(win, +el.dataset.id, el); return; }
+  if (el){ g = {t:'pend', id:e.pointerId, board:win, pid:+el.dataset.id, x0:e.clientX, y0:e.clientY}; return; }
+  g = {t:'tapbg', id:e.pointerId};
+});
+
+// パターン窓のドラッグ移動
+$('#pwHead').addEventListener('pointerdown', e => {
+  if (g || e.target.closest('button')) return;
+  e.preventDefault();
+  const r = $('#patWin').getBoundingClientRect();
+  g = {t:'winmove', id:e.pointerId, dx:e.clientX - r.left, dy:e.clientY - r.top};
+});
+
+window.addEventListener('pointermove', e => {
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (!g) return;
+  if (g.t === 'pinch'){ if (ptrs.size >= 2) pinchMove(); return; }
+  if (e.pointerId !== g.id) return;
+  const x = e.clientX, y = e.clientY;
+  switch (g.t){
+    case 'palette':
+      if (Math.hypot(x-g.x0, y-g.y0) > 5){
+        const proto = protoOf(g.it), d = dims(proto);
+        beginDrag({id:g.id, proto, src:null, orig:null, grabX:d.w/2, grabY:d.h/2}, x, y);
+      }
+      break;
+    case 'pend':
+      if (Math.hypot(x-g.x0, y-g.y0) > 6){
+        const b = g.board, p = findPiece(b, g.pid);
+        if (!p){ g = null; return; }
+        const w = b.toWorld(g.x0, g.y0);
+        beginDrag({id:g.id, proto:{type:p.type,size:p.size,rot:p.rot,color:p.color}, src:b, orig:p, grabX:w.x - p.x, grabY:w.y - p.y}, x, y);
+      }
+      break;
+    case 'drag': dragMove(x, y); break;
+    case 'pan':
+      if (Math.hypot(x-g.x0, y-g.y0) > 4) g.moved = true;
+      view.tx = g.tx0 + x - g.x0; view.ty = g.ty0 + y - g.y0; applyView();
+      break;
+    case 'range': {
+      const w = main.toWorld(x, y);
+      g.c1 = {x:clampI(Math.floor(w.x),0,WORLD-1), y:clampI(Math.floor(w.y),0,WORLD-1)};
+      drawRange(); break;
+    }
+    case 'erase': {
+      const {board, el} = boardAt(x, y);
+      const pe = el && el.closest('[data-id]');
+      if (board && pe) eraseEl(board, +pe.dataset.id, pe);
+      break;
+    }
+    case 'winmove': {
+      const st = $('#stage').getBoundingClientRect(), pw = $('#patWin');
+      const L = clampI(x - st.left - g.dx, 0, st.width - pw.offsetWidth);
+      const T = clampI(y - st.top - g.dy, 0, st.height - 60);
+      Object.assign(pw.style, {left:L+'px', top:T+'px', right:'auto', bottom:'auto'});
+      break;
+    }
+  }
+});
+
+function onUp(e){
+  ptrs.delete(e.pointerId);
+  if (!g) return;
+  if (g.t === 'pinch'){ if (ptrs.size < 2) g = null; return; }
+  if (e.pointerId !== g.id) return;
+  const cur = g;
+  switch (cur.t){
+    case 'palette': g = null; if (e.type === 'pointerup') placeAtCenter(cur.it); break;
+    case 'pend':
+      g = null;
+      S.sel = {b:cur.board.id, id:cur.pid};
+      renderSel(); renderTools();
+      break;
+    case 'drag': dragEnd(e.type === 'pointercancel'); break;
+    case 'pan': g = null; if (!cur.moved){ S.sel = null; renderSel(); renderTools(); } break;
+    case 'tapbg': g = null; S.sel = null; renderSel(); renderTools(); break;
+    case 'range': g = null; finishRange(cur); break;
+    case 'erase': finishErase(); break;
+    default: g = null;
+  }
+}
+window.addEventListener('pointerup', onUp);
+window.addEventListener('pointercancel', onUp);
+
+function clampI(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+/* ---------- ピンチ ---------- */
+function startPinch(){
+  const [a,b] = [...ptrs.values()];
+  const r = mainSvg.getBoundingClientRect();
+  g = {t:'pinch', d0:dist(a,b) || 1, m0:{x:(a.x+b.x)/2, y:(a.y+b.y)/2}, s0:view.s, tx0:view.tx, ty0:view.ty, r};
+}
+function pinchMove(){
+  const [a,b] = [...ptrs.values()];
+  const m = {x:(a.x+b.x)/2, y:(a.y+b.y)/2}, r = g.r;
+  const wx = (g.m0.x - r.left - g.tx0)/g.s0, wy = (g.m0.y - r.top - g.ty0)/g.s0;
+  view.s = clampS(g.s0 * dist(a,b) / g.d0);
+  view.tx = m.x - r.left - wx*view.s; view.ty = m.y - r.top - wy*view.s;
+  applyView();
+}
+mainSvg.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-clampI(e.deltaY,-50,50)*0.01), e.clientX, e.clientY);
+  else { view.tx -= e.deltaX; view.ty -= e.deltaY; applyView(); }
+}, {passive:false});
+['gesturestart','gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault()));
+
+/* ---------- ドラッグ ---------- */
+function beginDrag(o, x, y){
+  g = {t:'drag', ...o, target:null, cand:null, ok:false, trash:false, occ:{}};
+  if (o.orig){
+    const el = o.src.layer.querySelector(`[data-id="${o.orig.id}"]`);
+    if (el) el.style.display = 'none';
+    if (S.sel && S.sel.id === o.orig.id){ o.src.selL.innerHTML = ''; }
+  }
+  dragG.innerHTML = pieceSVG({...o.proto, x:0, y:0}, true);
+  dragLayer.hidden = false;
+  dragMove(x, y);
+}
+function occFor(b){
+  if (!g.occ[b.id]) g.occ[b.id] = occMap(b, g.src === b ? g.orig.id : undefined);
+  return g.occ[b.id];
+}
+function dragMove(x, y){
+  const {board, trash} = boardAt(x, y);
+  partsEl.classList.toggle('trash-hot', !!trash && !!g.orig);
+  main.ghost.innerHTML = ''; win.ghost.innerHTML = '';
+  let ok = false, cand = null;
+  if (board){
+    const w = board.toWorld(x, y);
+    cand = {...g.proto, x:Math.round(w.x - g.grabX), y:Math.round(w.y - g.grabY)};
+    ok = fits(board, cand, occFor(board));
+    if (ok) board.ghost.innerHTML = pieceSVG(cand, true);
+  }
+  g.target = board || null; g.trash = !!trash; g.cand = cand; g.ok = ok;
+  const pp = board ? board.ppc() : (g.src ? g.src.ppc() : view.s);
+  dragG.setAttribute('transform', `translate(${x - g.grabX*pp} ${y - g.grabY*pp}) scale(${pp})`);
+  dragG.style.opacity = board ? (ok ? .9 : .3) : (trash ? .5 : .75);
+}
+function dragEnd(cancel){
+  const d = g; g = null;
+  main.ghost.innerHTML = ''; win.ghost.innerHTML = '';
+  dragLayer.hidden = true; dragG.innerHTML = '';
+  partsEl.classList.remove('trash-hot');
+  if (cancel){ renderAll(); return; }
+  if (d.trash){
+    if (d.orig){
+      pushUndo();
+      d.src.pieces = d.src.pieces.filter(p => p.id !== d.orig.id);
+      if (S.sel && S.sel.id === d.orig.id) S.sel = null;
+      changed();
+    } else renderAll();
+    return;
+  }
+  if (d.target){
+    const fin = d.ok ? d.cand : nearestFree(d.target, d.cand, occFor_(d));
+    if (!fin){
+      toast(d.orig ? 'おける ばしょが ないよ。もとに もどしたよ' : 'おける ばしょが ないよ');
+      renderAll(); return;
+    }
+    if (d.orig && d.target === d.src && fin.x === d.orig.x && fin.y === d.orig.y){
+      S.sel = {b:d.src.id, id:d.orig.id}; renderAll(); return;
+    }
+    pushUndo();
+    if (d.orig) d.src.pieces = d.src.pieces.filter(p => p.id !== d.orig.id);
+    const np = {...fin, id: d.orig ? d.orig.id : newId()};
+    d.target.pieces.push(np);
+    S.sel = {b:d.target.id, id:np.id};
+    changed();
+    return;
+  }
+  renderAll();
+}
+function occFor_(d){ return d.occ[d.target.id] || occMap(d.target, d.src === d.target ? d.orig.id : undefined); }
+
+/* ---------- 消しゴム ---------- */
+function eraseEl(board, id, el){
+  if (!g.pushed){ pushUndo(); g.pushed = true; }
+  board.pieces = board.pieces.filter(p => p.id !== id);
+  if (el) el.remove();
+  if (S.sel && S.sel.id === id){ S.sel = null; renderSel(); }
+}
+function finishErase(){
+  const pushed = g && g.pushed; g = null;
+  if (pushed) changed();
+}
+
+/* =========================================================
+   ボタン：色・回転・消す・アンドゥ・表示
+   ========================================================= */
+function buildSwatches(el, colors, onPick){
+  el.innerHTML = colors.map(c => `<button class="sw" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('');
+  el.addEventListener('click', e => { const b = e.target.closest('.sw'); if (b) onPick(b.dataset.c); });
+}
+buildSwatches($('#colorSw'), COLORS, c => {
+  S.color = c;
+  const p = S.sel && findPiece(boards[S.sel.b], S.sel.id);
+  if (p && p.color !== c){ pushUndo(); p.color = c; changed(); }
+  else { renderParts(); renderTools(); save(); }
+});
+
+function rotate(){
+  const p = S.sel && findPiece(boards[S.sel.b], S.sel.id);
+  if (!p){
+    // なにも選んでいないときは、部品置き場の向きをかえる
+    S.palRot.tri = (S.palRot.tri + 1) % 4; S.palRot.rect = (S.palRot.rect + 1) % 2;
+    renderParts(); save();
+    toast('ずけいを えらぶと、その ずけいが まわるよ');
+    return;
+  }
+  if (p.type === 'sq'){ toast('ましかくは まわしても おなじだよ'); return; }
+  const b = boards[S.sel.b];
+  const q = {...p, rot: p.type === 'tri' ? (p.rot+1)%4 : (p.rot+1)%2};
+  const om = occMap(b, p.id);
+  const r = fits(b, q, om) ? q : nearestFree(b, q, om, 3);
+  if (!r){ toast('ここでは まわせないよ'); return; }
+  pushUndo();
+  Object.assign(p, {rot:r.rot, x:r.x, y:r.y});
+  if (p.type === 'tri') S.palRot.tri = p.rot; else S.palRot.rect = p.rot;
+  changed();
+}
+function deleteSel(){
+  if (!S.sel) return;
+  const b = boards[S.sel.b];
+  pushUndo(); b.pieces = b.pieces.filter(p => p.id !== S.sel.id); S.sel = null; changed();
+}
+function setMode(m){
+  S.mode = m;
+  if (m === 'normal') banner(null);
+  if (m === 'erase') banner('けしたい ずけいを タッチしてね（なぞっても けせるよ）');
+  if (m === 'repeat') banner('くりかえす ばしょを ゆびで なぞってね');
+  renderTools();
+}
+
+$('#rotBtn').onclick = rotate;
+$('#eraseBtn').onclick = () => setMode(S.mode === 'erase' ? 'normal' : 'erase');
+$('#bannerCancel').onclick = () => setMode('normal');
+$('#undoBtn').onclick = undo;
+$('#clearBtn').onclick = async () => {
+  if (!main.pieces.length){ toast('もう なにも ないよ'); return; }
+  if (!await ask('ぜんぶ けしても いい？\n（パターンまどの なかは のこるよ）', 'けす', 'やめる')) return;
+  pushUndo(true);
+  main.pieces = []; S.sel = null; S.gridOn = true; fsess = null;
+  changed();
+};
+$('#gridBtn').onclick = () => { S.gridOn = !S.gridOn; renderGridState(); renderTools(); save(); };
+$('#borderBtn').onclick = () => { S.borderOn = !S.borderOn; renderGridState(); renderParts(); renderTools(); save(); };
+$('#bigOnlyBtn').onclick = () => { S.bigOnly = !S.bigOnly; renderParts(); save(); };
+$('#zoomIn').onclick = () => zoomAt(1.25);
+$('#zoomOut').onclick = () => zoomAt(0.8);
+$('#fitBtn').onclick = fitAll;
+$('#patBtn').onclick = () => { S.winOpen = !S.winOpen; $('#patWin').hidden = !S.winOpen; if (!S.winOpen && S.mode === 'repeat') setMode('normal'); renderTools(); };
+$('#pwClose').onclick = () => { S.winOpen = false; $('#patWin').hidden = true; if (S.mode === 'repeat') setMode('normal'); renderTools(); };
+
+window.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('textarea,input')) return;
+  if (!$('#exportView').hidden || !$('#modal').hidden) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){ e.preventDefault(); undo(); }
+  else if (e.key === 'r' || e.key === 'R') rotate();
+  else if (e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteSel(); }
+  else if (e.key === 'Escape'){ setMode('normal'); S.sel = null; renderSel(); renderTools(); }
+});
+
+/* =========================================================
+   パターン窓
+   ========================================================= */
+function setWinN(n){
+  win.w = win.h = n;
+  winSvg.setAttribute('viewBox', `0 0 ${n} ${n}`);
+  $('#winBg').setAttribute('width', n); $('#winBg').setAttribute('height', n);
+  $('#winGrid').setAttribute('d', gridPath(n, n));
+}
+$$('.pw-size button').forEach(b => b.onclick = async () => {
+  const n = +b.dataset.n;
+  if (n === win.w) return;
+  if (win.pieces.length && !await ask('おおきさを かえると、まどの なかみが きえるよ。いい？', 'かえる', 'やめる')) return;
+  pushUndo();
+  win.pieces = []; if (S.sel && S.sel.b === 'win') S.sel = null;
+  setWinN(n); changed();
+});
+$('#winClearBtn').onclick = async () => {
+  if (!win.pieces.length) return;
+  if (!await ask('まどの なかを からに する？', 'からにする', 'やめる')) return;
+  pushUndo(); win.pieces = []; if (S.sel && S.sel.b === 'win') S.sel = null; changed();
+};
+
+/* ---------- くりかえし ---------- */
+function drawRange(){
+  const r = rangeOf(g.c0, g.c1), el = $('#rangeRect');
+  Object.entries({x:r.x, y:r.y, width:r.w, height:r.h}).forEach(([k,v]) => el.setAttribute(k, v));
+  el.hidden = false;
+  banner(`よこ ${r.w} × たて ${r.h} ます`);
+}
+function rangeOf(a, b){
+  const x = Math.min(a.x,b.x), y = Math.min(a.y,b.y);
+  return {x, y, w:Math.abs(a.x-b.x)+1, h:Math.abs(a.y-b.y)+1};
+}
+$('#repeatBtn').onclick = () => {
+  if (S.mode === 'repeat'){ setMode('normal'); return; }
+  if (!win.pieces.length){ toast('さきに まどの なかに もようを つくってね'); return; }
+  setMode('repeat');
+};
+async function finishRange(cur){
+  $('#rangeRect').hidden = true;
+  setMode('normal');
+  const r = rangeOf(cur.c0, cur.c1), n = win.w, add = [];
+  for (let ty = 0; ty*n < r.h; ty++) for (let tx = 0; tx*n < r.w; tx++) for (const p of win.pieces){
+    const q = {...p, x:r.x + tx*n + p.x, y:r.y + ty*n + p.y}, d = dims(q);
+    if (q.x + d.w <= r.x + r.w && q.y + d.h <= r.y + r.h) add.push(q);
+  }
+  if (!add.length){ toast('もっと ひろく えらんでね'); return; }
+  const hit = main.pieces.filter(p => overlapsRect(p, r));
+  if (hit.length && !await ask('ここには もう ずけいが あるよ。\nうえがき する？')) return;
+  pushUndo(true);
+  const hitSet = new Set(hit);
+  main.pieces = main.pieces.filter(p => !hitSet.has(p)).concat(add.map(q => ({...q, id:newId()})));
+  S.gridOn = false; S.sel = null; fsess = null;
+  changed();
+  const fitted = !isVisible(r);
+  if (fitted) fitRect(r.x, r.y, r.w, r.h);
+  toast('できた！ ますめを けしたよ（「ますめ」で もどせるよ）', 3000);
+}
+
+/* ---------- フラクタル ---------- */
+function fractalCheck(){
+  if (!win.pieces.length) return 'さきに まどの なかに もようを つくってね';
+  if (win.pieces.some(p => p.size !== 1 || p.type === 'rect'))
+    return 'フラクタルは、ちいさい「ましかく」と「さんかく」だけで つくってね（おおきい ずけいと ながしかくは つかえないよ）';
+  return null;
+}
+function fractalPieces(stage, ox, oy){
+  const n = win.w, cells = new Map();
+  for (const p of win.pieces){ const k = p.x + ',' + p.y; if (!cells.has(k)) cells.set(k, []); cells.get(k).push(p); }
+  const occ = [...cells.entries()].map(([k, list]) => { const [i,j] = k.split(',').map(Number); return [i, j, list]; });
+  const out = [];
+  (function rec(level, bx, by){
+    const sz = n ** (stage - level - 1);
+    for (const [i, j, list] of occ){
+      const sx = bx + i*sz, sy = by + j*sz;
+      if (level === stage - 1) for (const q of list) out.push({type:q.type, size:1, rot:q.rot, color:q.color, x:sx, y:sy, id:newId()});
+      else rec(level + 1, sx, sy);
+    }
+  })(0, ox, oy);
+  return out;
+}
+async function fractalStage(stage){
+  const n = win.w, N = n ** stage;
+  const ox = clampI(fsess.cx - Math.floor(N/2), 0, WORLD - N), oy = clampI(fsess.cy - Math.floor(N/2), 0, WORLD - N);
+  const r = {x:ox, y:oy, w:N, h:N};
+  const cellsUsed = new Set(win.pieces.map(p => p.x + ',' + p.y)).size;
+  const count = win.pieces.length * cellsUsed ** (stage - 1);
+  const {W,H} = stageSize();
+  if (Math.min(W,H) / (N + 3) < 9 || count > 3000){
+    if (!await ask(`とても おおきな もようになるよ（${N}×${N} ます）。\nがめんに ぜんぶ はいらないかも。\nつづける？`, 'つづける', 'やめる')) return false;
+  }
+  const hit = fsess.base.filter(p => overlapsRect(p, r));
+  if (hit.length && !await ask('ここには もう ずけいが あるよ。\nうえがき する？')) return false;
+  pushUndo(true);
+  const hitSet = new Set(hit);
+  main.pieces = fsess.base.filter(p => !hitSet.has(p)).map(p => ({...p})).concat(fractalPieces(stage, ox, oy));
+  S.gridOn = false; S.sel = null;
+  fsess.stage = stage;
+  changed();
+  fsess.version = version; renderTools();
+  if (!isVisible(r)){ fitRect(r.x, r.y, r.w, r.h); toast('ぜんたいが みえるように したよ'); }
+  return true;
+}
+$('#fractalBtn').onclick = async () => {
+  const err = fractalCheck();
+  if (err){ toast(err, 3800); return; }
+  setMode('normal');
+  const c = viewCenterCell();
+  fsess = {base: main.pieces.map(p => ({...p})), cx:c.x, cy:c.y, stage:1, version:-1};
+  if (await fractalStage(2)) toast('フラクタル！「もういちど」で もっと こまかく なるよ', 3200);
+  else { fsess = null; renderTools(); }
+};
+$('#againBtn').onclick = async () => {
+  if (!fsess || fsess.version !== version || fsess.stage >= 3) return;
+  if (fractalCheck()){ toast(fractalCheck(), 3800); return; }
+  await fractalStage(fsess.stage + 1);
+};
+
+/* =========================================================
+   書き出し画面
+   ========================================================= */
+const exCanvas = $('#exCanvas'), baseCv = document.createElement('canvas');
+let exL = null;
+const PEN_PX = [4, 10, 22];        // 画面上の見た目の太さ(px)
+
+function computeLayout(){
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  for (const p of main.pieces) for (const [x,y] of polyPts(p)){ x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); }
+  const W = x1 - x0, H = y1 - y0, D = Math.max(W, H);
+  const margin = Math.max(1, D * 0.08);
+  const lines = ex.text.trim() ? ex.text.replace(/\s+$/,'').split('\n') : [];
+  const fs = lines.length ? Math.max(0.7, D * [0.065, 0.1, 0.15][ex.size]) : 0;
+  let tw = 0;
+  if (lines.length){
+    const c = baseCv.getContext('2d'); c.font = `bold 100px ${FONT}`;
+    tw = Math.max(...lines.map(l => c.measureText(l).width)) / 100 * fs;
+  }
+  const lineH = fs * 1.3, textH = lines.length * lineH, gap = lines.length ? margin * 0.6 : 0;
+  const contentW = Math.max(W, tw);
+  const totalW = contentW + 2*margin, totalH = H + textH + gap + 2*margin;
+  const patX = margin + (contentW - W)/2, patY = margin + (ex.pos === 'top' && lines.length ? textH + gap : 0);
+  const textY = ex.pos === 'top' ? margin : margin + H + gap;
+  const textX = ex.align === 'left' ? margin : ex.align === 'right' ? margin + contentW : margin + contentW/2;
+  let px = 1200 / Math.min(totalW, totalH);
+  if (Math.max(totalW, totalH) * px > 4096) px = 4096 / Math.max(totalW, totalH);
+  return {px, cw:Math.round(totalW*px), ch:Math.round(totalH*px), ox:x0 - patX, oy:y0 - patY, patX, patY, x0, y0,
+          lines, fs, lineH, textX, textY};
+}
+function drawPiecesCtx(ctx, pieces, ox, oy, px, border){
+  ctx.lineJoin = 'round';
+  const path = p => { ctx.beginPath(); polyPts(p).forEach(([x,y], i) => { const X=(x-ox)*px, Y=(y-oy)*px; i ? ctx.lineTo(X,Y) : ctx.moveTo(X,Y); }); ctx.closePath(); };
+  for (const p of pieces){
+    path(p); ctx.fillStyle = p.color; ctx.fill();
+    if (!border){ ctx.strokeStyle = p.color; ctx.lineWidth = 1; ctx.stroke(); }  // すき間（白いすじ）をふせぐ
+  }
+  if (border){
+    ctx.strokeStyle = '#2b2624'; ctx.lineWidth = Math.max(2, px*0.05);
+    for (const p of pieces){ path(p); ctx.stroke(); }
+  }
+}
+function drawBase(){
+  const L = exL, c = baseCv.getContext('2d');
+  baseCv.width = L.cw; baseCv.height = L.ch;
+  c.fillStyle = ex.bg; c.fillRect(0, 0, L.cw, L.ch);
+  drawPiecesCtx(c, main.pieces, L.ox, L.oy, L.px, S.borderOn);
+  if (L.lines.length){
+    c.fillStyle = ex.tcolor; c.textAlign = ex.align; c.textBaseline = 'top';
+    c.font = `bold ${L.fs*L.px}px ${FONT}`;
+    L.lines.forEach((ln, i) => c.fillText(ln, L.textX*L.px, (L.textY + i*L.lineH + L.fs*0.12)*L.px));
+  }
+}
+const s2c = ([x,y]) => [(x + exL.patX)*exL.px, (y + exL.patY)*exL.px];
+function strokePath(c, st){
+  c.strokeStyle = st.c; c.lineWidth = st.w * exL.px; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath();
+  st.p.forEach((pt, i) => { const [X,Y] = s2c(pt); i ? c.lineTo(X,Y) : c.moveTo(X,Y); });
+  if (st.p.length === 1){ const [X,Y] = s2c(st.p[0]); c.lineTo(X+0.01, Y); }
+  c.stroke();
+}
+function drawAll(){
+  exCanvas.width = exL.cw; exCanvas.height = exL.ch;
+  const c = exCanvas.getContext('2d');
+  c.drawImage(baseCv, 0, 0);
+  for (const st of ex.strokes) strokePath(c, st);
+}
+function fitExCanvas(){
+  if (!exL) return;
+  const r = $('#exWrap').getBoundingClientRect();
+  const k = Math.min((r.width - 20)/exL.cw, (r.height - 20)/exL.ch);
+  exCanvas.style.width = exL.cw*k + 'px'; exCanvas.style.height = exL.ch*k + 'px';
+}
+function relayoutExport(){ exL = computeLayout(); drawBase(); drawAll(); fitExCanvas(); }
+
+function setExTab(t){
+  ex.tab = t;
+  $$('.tabs .btn').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $$('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== t);
+  exCanvas.classList.toggle('pen', t === 'pen');
+}
+function syncExUI(){
+  $$('#bgSw .sw').forEach(b => b.classList.toggle('on', b.dataset.c === ex.bg));
+  $$('#tSw .sw').forEach(b => b.classList.toggle('on', b.dataset.c === ex.tcolor));
+  $$('#penSw .sw').forEach(b => b.classList.toggle('on', b.dataset.c === ex.penColor));
+  $$('#tPos .btn').forEach(b => b.classList.toggle('on', b.dataset.v === ex.pos));
+  $$('#tAlign .btn').forEach(b => b.classList.toggle('on', b.dataset.v === ex.align));
+  $$('#tSize .btn').forEach(b => b.classList.toggle('on', +b.dataset.v === ex.size));
+  $$('#penW .btn').forEach(b => b.classList.toggle('on', +b.dataset.v === ex.penW));
+  $('#penEraseBtn').classList.toggle('on', ex.penErase);
+  $('#penUndoBtn').disabled = penHist.length === 0;
+}
+let penHist = [];
+function openExport(){
+  if (!main.pieces.length){ toast('まだ ずけいが ないよ。ならべてから ほぞんしてね'); return; }
+  setMode('normal'); S.sel = null; renderSel(); renderTools();
+  $('#exportView').hidden = false;
+  $('#exText').value = ex.text;
+  penHist = [];
+  setExTab(ex.tab); syncExUI();
+  requestAnimationFrame(relayoutExport);
+}
+$('#exportBtn').onclick = openExport;
+$('#exBack').onclick = () => { $('#exportView').hidden = true; save(); };
+$$('.tabs .btn').forEach(b => b.onclick = () => setExTab(b.dataset.tab));
+buildSwatches($('#bgSw'), BG_COLORS, c => { ex.bg = c; syncExUI(); drawBase(); drawAll(); save(); });
+buildSwatches($('#tSw'), COLORS, c => { ex.tcolor = c; syncExUI(); drawBase(); drawAll(); save(); });
+buildSwatches($('#penSw'), COLORS, c => { ex.penColor = c; ex.penErase = false; syncExUI(); save(); });
+$('#exText').addEventListener('input', e => { ex.text = e.target.value; relayoutExport(); save(); });
+const segBind = (sel, fn) => $$(sel + ' .btn').forEach(b => b.onclick = () => { fn(b.dataset.v); syncExUI(); });
+segBind('#tPos', v => { ex.pos = v; relayoutExport(); save(); });
+segBind('#tAlign', v => { ex.align = v; relayoutExport(); save(); });
+segBind('#tSize', v => { ex.size = +v; relayoutExport(); save(); });
+segBind('#penW', v => { ex.penW = +v; ex.penErase = false; save(); });
+$('#penEraseBtn').onclick = () => { ex.penErase = !ex.penErase; syncExUI(); };
+$('#penUndoBtn').onclick = () => { if (!penHist.length) return; ex.strokes = penHist.pop(); drawAll(); syncExUI(); save(); };
+$('#penClearBtn').onclick = async () => {
+  if (!ex.strokes.length) return;
+  if (!await ask('ペンで かいたものを ぜんぶ けす？', 'けす', 'やめる')) return;
+  penHist.push(ex.strokes); ex.strokes = []; drawAll(); syncExUI(); save();
+};
+
+// ペン
+let penG = null;
+function canvasPt(e){
+  const r = exCanvas.getBoundingClientRect();
+  const X = (e.clientX - r.left) * exL.cw / r.width, Y = (e.clientY - r.top) * exL.ch / r.height;
+  return [X/exL.px - exL.patX, Y/exL.px - exL.patY];
+}
+const screenToCells = v => v * exL.cw / exCanvas.getBoundingClientRect().width / exL.px;
+function segDist(p, a, b){
+  const dx = b[0]-a[0], dy = b[1]-a[1], L = dx*dx + dy*dy;
+  let t = L ? ((p[0]-a[0])*dx + (p[1]-a[1])*dy)/L : 0; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p[0] - a[0] - t*dx, p[1] - a[1] - t*dy);
+}
+function penErase(pt){
+  const tol = screenToCells(14);
+  const keep = ex.strokes.filter(st => {
+    const lim = tol + st.w/2;
+    if (st.p.length === 1) return Math.hypot(pt[0]-st.p[0][0], pt[1]-st.p[0][1]) > lim;
+    for (let i=1;i<st.p.length;i++) if (segDist(pt, st.p[i-1], st.p[i]) <= lim) return false;
+    return true;
+  });
+  if (keep.length !== ex.strokes.length){
+    if (!penG.pushed){ penHist.push(ex.strokes); penG.pushed = true; }
+    ex.strokes = keep; drawAll();
+  }
+}
+exCanvas.addEventListener('pointerdown', e => {
+  if (ex.tab !== 'pen' || penG || !exL) return;
+  e.preventDefault();
+  exCanvas.setPointerCapture(e.pointerId);
+  const pt = canvasPt(e);
+  if (ex.penErase){ penG = {id:e.pointerId, erase:true, pushed:false}; penErase(pt); return; }
+  const st = {c:ex.penColor, w:screenToCells(PEN_PX[ex.penW]), p:[pt]};
+  penHist.push(ex.strokes); ex.strokes = ex.strokes.concat([st]);
+  penG = {id:e.pointerId, st};
+  strokePath(exCanvas.getContext('2d'), {...st, p:[pt]});
+});
+exCanvas.addEventListener('pointermove', e => {
+  if (!penG || e.pointerId !== penG.id) return;
+  const pt = canvasPt(e);
+  if (penG.erase){ penErase(pt); return; }
+  const st = penG.st, last = st.p[st.p.length-1];
+  if (Math.hypot(pt[0]-last[0], pt[1]-last[1]) < screenToCells(1.5)) return;
+  st.p.push(pt);
+  strokePath(exCanvas.getContext('2d'), {...st, p:[last, pt]});
+});
+const penUp = e => { if (penG && e.pointerId === penG.id){ penG = null; drawAll(); syncExUI(); save(); } };
+exCanvas.addEventListener('pointerup', penUp);
+exCanvas.addEventListener('pointercancel', penUp);
+
+function fname(){
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  return `mosaic-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.png`;
+}
+$('#exSave').onclick = () => {
+  exCanvas.toBlob(b => {
+    if (!b){ showImg(); return; }
+    const url = URL.createObjectURL(b), a = document.createElement('a');
+    a.href = url; a.download = fname(); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 20000);
+    toast('がぞうを ほぞんしたよ。うまく いかないときは「ながおしで ほぞん」を つかってね', 3600);
+  }, 'image/png');
+};
+function showImg(){ $('#imgViewImg').src = exCanvas.toDataURL('image/png'); $('#imgView').hidden = false; }
+$('#exLong').onclick = showImg;
+$('#imgClose').onclick = () => { $('#imgView').hidden = true; $('#imgViewImg').src = ''; };
+
+/* =========================================================
+   はじめる
+   ========================================================= */
+load();
+if (win.w === 3 && !$('#winGrid').getAttribute('d')) setWinN(3);
+nextId = Math.max(nextId, 1);
+renderAll();
+requestAnimationFrame(() => { fitAll(); });
+window.addEventListener('resize', () => { applyView(); if (!$('#exportView').hidden) fitExCanvas(); });
+
+// テスト・デバッグ用（遊びには使わない）
+window.__mosaic = {main, win, S, view, ex, get version(){ return version; }, undo, fitAll};
+})();
+</script>
+</body>
+</html>
